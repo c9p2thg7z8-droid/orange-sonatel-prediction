@@ -1,7 +1,7 @@
 ---
 title: Orange Sonatel Prediction
 emoji: 🔮
-colorFrom: orange
+colorFrom: red
 colorTo: green
 sdk: docker
 pinned: false
