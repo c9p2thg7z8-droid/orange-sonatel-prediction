@@ -227,12 +227,13 @@
 <footer>© 2025 <span>Orange Sonatel</span> — Outil interne de classification des plaintes</footer>
 
 <script>
-const API = "http://localhost:8000";
+const API = "https://cheikhanta-orange-sonatel-prediction.hf.space";
+const API_PROD="https://cheikhanta-orange-sonatel-prediction.hf.space"
 let csvData = [];
 
 // Charger les choix au démarrage
 async function loadChoices() {
-  const r = await fetch(`${API}/choices`);
+  const r = await fetch(`${API_PROD}/choices`);
   const d = await r.json();
 
   fill("sel-domaine", "list-domaine", d.domaines);
