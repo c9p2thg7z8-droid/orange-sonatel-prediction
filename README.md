@@ -1,3 +1,12 @@
+---
+title: Orange Sonatel Prediction
+emoji: 🔮
+colorFrom: orange
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # 🔮 Système de Prédiction des Groupes — Orange Sonatel
 
 > Outil d'aide à l'affectation automatique des plaintes clients  
