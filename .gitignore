@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.csv
+.DS_Store
+*.pptx
+bienvenue.png
+"image du resultat.png"
+"imagede l'interface.png"
+screenshots/
+*.pkl
+
+
+git remote add origin https://github.com/c9p2thg7z8-droid/orange-sonatel-prediction.git
+git branch -M main
+git push -u origin main
