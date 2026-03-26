@@ -12,7 +12,7 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 bundle = pickle.load(open("model_groupe.pkl", "rb"))
 model, encoders, features = bundle["model"], bundle["encoders"], bundle["features"]
 
-HF_TOKEN = os.getenv("REMOVED", "")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 
 def get_choices(col):
