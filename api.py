@@ -19,33 +19,14 @@ def get_choices(col):
     try: return sorted(encoders[col].classes_.tolist())
     except: return []
 
-class ChatMessage(BaseModel):
-    message: str
-
-@app.post("/chat")
-def chat(msg: ChatMessage):
-    system_prompt = """Tu es un assistant intelligent de la DSI d'Orange Sonatel.
-Tu aides les agents à traiter les plaintes clients.
-Réponds en français, de manière concise et professionnelle.
-Tu connais les domaines : DATA_MOBILE, INTERNET, VOIX, FACTURATION, etc."""
-
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {
-        "inputs": f"<|system|>\n{system_prompt}<|end|>\n<|user|>\n{msg.message}<|end|>\n<|assistant|>",
-        "parameters": {"max_new_tokens": 300, "temperature": 0.7, "return_full_text": False}
-    }
-    try:
-        r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=30)
-        result = r.json()
-        if isinstance(result, list):
-            return {"response": result[0]["generated_text"].strip()}
-        return {"response": "Le modèle est en cours de chargement, réessaie dans 30 secondes."}
-    except Exception as e:
-        return {"response": f"Erreur : {str(e)}"}
+class Plainte(BaseModel):
     domaine: str
     sous_domaine: str
     type_: str
     typologie: str
+
+class ChatMessage(BaseModel):
+    message: str
 
 @app.get("/")
 def index():
@@ -103,3 +84,24 @@ async def predict_csv(file: UploadFile = File(...)):
     df["GROUPE_PREDIT"] = encoders["GROUPE"].inverse_transform(preds)
     df["CONFIANCE"] = (probas * 100).round(1).astype(str) + "%"
     return df.to_dict(orient="records")
+
+@app.post("/chat")
+def chat(msg: ChatMessage):
+    system_prompt = """Tu es un assistant intelligent de la DSI d'Orange Sonatel.
+Tu aides les agents à traiter les plaintes clients.
+Réponds en français, de manière concise et professionnelle.
+Tu connais les domaines : DATA_MOBILE, INTERNET, VOIX, FACTURATION, etc."""
+
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    payload = {
+        "inputs": f"<|system|>\n{system_prompt}<|end|>\n<|user|>\n{msg.message}<|end|>\n<|assistant|>",
+        "parameters": {"max_new_tokens": 300, "temperature": 0.7, "return_full_text": False}
+    }
+    try:
+        r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=30)
+        result = r.json()
+        if isinstance(result, list):
+            return {"response": result[0]["generated_text"].strip()}
+        return {"response": "Le modèle est en cours de chargement, réessaie dans 30 secondes."}
+    except Exception as e:
+        return {"response": f"Erreur : {str(e)}"}
