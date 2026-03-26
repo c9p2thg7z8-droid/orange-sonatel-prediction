@@ -2,9 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Installer les deps en premier (cache Docker)
 COPY requirements.txt .
-RUN pip install --no-cache-dir fastapi uvicorn scikit-learn==1.6.1 pandas python-multipart
+RUN pip install --no-cache-dir fastapi uvicorn scikit-learn==1.6.1 pandas python-multipart requests
 
+# Copier le code ensuite
 COPY . .
 
 EXPOSE 7860
