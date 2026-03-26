@@ -92,7 +92,7 @@ Tu aides les agents à traiter les plaintes clients.
 Réponds en français, de manière concise et professionnelle.
 Tu connais les domaines : DATA_MOBILE, INTERNET, VOIX, FACTURATION, etc."""
 
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    headers = {"Authorization": f"Bearer {REMOVED}"}
     payload = {
         "inputs": f"<|system|>\n{system_prompt}<|end|>\n<|user|>\n{msg.message}<|end|>\n<|assistant|>",
         "parameters": {"max_new_tokens": 300, "temperature": 0.7, "return_full_text": False}
