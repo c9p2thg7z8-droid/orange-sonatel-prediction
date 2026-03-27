@@ -13,7 +13,7 @@ bundle = pickle.load(open("model_groupe.pkl", "rb"))
 model, encoders, features = bundle["model"], bundle["encoders"], bundle["features"]
 
 HF_TOKEN = os.getenv("HF_TOKEN", "")
-HF_API_URL = "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3"
+HF_API_URL = "https://router.huggingface.co/hf-inference/v1/chat/completions"
 
 def get_choices(col):
     try: return sorted(encoders[col].classes_.tolist())
@@ -85,21 +85,21 @@ async def predict_csv(file: UploadFile = File(...)):
 
 @app.post("/chat")
 def chat(msg: ChatMessage):
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    prompt = f"[INST] Tu es un assistant DSI Orange Sonatel. Reponds en francais.\n\n{msg.message} [/INST]"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
     payload = {
-        "inputs": prompt,
-        "parameters": {"max_new_tokens": 300, "temperature": 0.7, "return_full_text": False}
+        "model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "messages": [
+            {"role": "system", "content": "Tu es un assistant DSI Orange Sonatel. Reponds en francais."},
+            {"role": "user", "content": msg.message}
+        ],
+        "max_tokens": 300,
+        "temperature": 0.7
     }
     try:
         r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
         if r.status_code != 200:
             return {"response": f"Erreur API ({r.status_code}): {r.text[:200]}"}
         result = r.json()
-        if isinstance(result, list) and len(result) > 0:
-            return {"response": result[0]["generated_text"].strip()}
-        if isinstance(result, dict) and "error" in result:
-            return {"response": result["error"]}
-        return {"response": str(result)}
+        return {"response": result["choices"][0]["message"]["content"].strip()}
     except Exception as e:
         return {"response": f"Erreur : {str(e)}"}
