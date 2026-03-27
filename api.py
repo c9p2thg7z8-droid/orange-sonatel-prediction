@@ -13,8 +13,9 @@ bundle = pickle.load(open("model_groupe.pkl", "rb"))
 model, encoders, features = bundle["model"], bundle["encoders"], bundle["features"]
 
 HF_TOKEN = os.getenv("HF_TOKEN", "")
-HF_API_URL = "https://router.huggingface.co/hf-inference/v1/chat/completions"
-HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
+
+from huggingface_hub import InferenceClient
+client = InferenceClient(model="mistralai/Mistral-7B-Instruct-v0.3", token=HF_TOKEN)
 
 def get_choices(col):
     try: return sorted(encoders[col].classes_.tolist())
@@ -86,20 +87,14 @@ async def predict_csv(file: UploadFile = File(...)):
 
 @app.post("/chat")
 def chat(msg: ChatMessage):
-    headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
-    payload = {
-        "model": HF_MODEL,
-        "messages": [
-            {"role": "system", "content": "Tu es un assistant DSI Orange Sonatel. Reponds en francais."},
-            {"role": "user", "content": msg.message}
-        ],
-        "max_tokens": 300
-    }
     try:
-        r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
-        if r.status_code != 200:
-            return {"response": f"Status {r.status_code}: {r.text[:300]}"}
-        result = r.json()
-        return {"response": result["choices"][0]["message"]["content"].strip()}
+        response = client.chat_completion(
+            messages=[
+                {"role": "system", "content": "Tu es un assistant DSI Orange Sonatel. Reponds en francais."},
+                {"role": "user", "content": msg.message}
+            ],
+            max_tokens=300
+        )
+        return {"response": response.choices[0].message.content.strip()}
     except Exception as e:
         return {"response": f"Erreur : {str(e)}"}
