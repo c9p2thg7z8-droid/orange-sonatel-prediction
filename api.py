@@ -12,7 +12,7 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 bundle = pickle.load(open("model_groupe.pkl", "rb"))
 model, encoders, features = bundle["model"], bundle["encoders"], bundle["features"]
 
-HF_TOKEN = os.getenv("REMOVED", "")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 
 def get_choices(col):
@@ -59,10 +59,8 @@ def predict(p: Plainte):
             inconnues.append(col)
             v = le.classes_[0]
         row.append(le.transform([v])[0])
-
     if inconnues:
         return {"error": f"Valeurs inconnues : {', '.join(inconnues)}"}
-
     pred = model.predict([row])[0]
     proba = model.predict_proba([row])[0].max()
     groupe = encoders["GROUPE"].inverse_transform([pred])[0]
@@ -87,21 +85,19 @@ async def predict_csv(file: UploadFile = File(...)):
 
 @app.post("/chat")
 def chat(msg: ChatMessage):
-    system_prompt = """Tu es un assistant intelligent de la DSI d'Orange Sonatel.
-Tu aides les agents à traiter les plaintes clients.
-Réponds en français, de manière concise et professionnelle.
-Tu connais les domaines : DATA_MOBILE, INTERNET, VOIX, FACTURATION, etc."""
-
-    headers = {"Authorization": f"Bearer {REMOVED}"}
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    prompt = f"[INST] Tu es un assistant DSI Orange Sonatel. Reponds en francais.\n\n{msg.message} [/INST]"
     payload = {
-        "inputs": f"<|system|>\n{system_prompt}<|end|>\n<|user|>\n{msg.message}<|end|>\n<|assistant|>",
+        "inputs": prompt,
         "parameters": {"max_new_tokens": 300, "temperature": 0.7, "return_full_text": False}
     }
     try:
-        r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=30)
+        r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
         result = r.json()
-        if isinstance(result, list):
+        if isinstance(result, list) and len(result) > 0:
             return {"response": result[0]["generated_text"].strip()}
-        return {"response": "Le modèle est en cours de chargement, réessaie dans 30 secondes."}
+        if isinstance(result, dict) and "error" in result:
+            return {"response": result["error"]}
+        return {"response": str(result)}
     except Exception as e:
         return {"response": f"Erreur : {str(e)}"}
