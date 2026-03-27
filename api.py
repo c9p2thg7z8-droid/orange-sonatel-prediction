@@ -93,6 +93,8 @@ def chat(msg: ChatMessage):
     }
     try:
         r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
+        if r.status_code != 200:
+            return {"response": f"Erreur API ({r.status_code}): {r.text[:200]}"}
         result = r.json()
         if isinstance(result, list) and len(result) > 0:
             return {"response": result[0]["generated_text"].strip()}
