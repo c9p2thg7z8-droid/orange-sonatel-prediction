@@ -12,10 +12,8 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 bundle = pickle.load(open("model_groupe.pkl", "rb"))
 model, encoders, features = bundle["model"], bundle["encoders"], bundle["features"]
 
-HF_TOKEN = os.getenv("HF_TOKEN", "")
-
-from huggingface_hub import InferenceClient
-client = InferenceClient(model="mistralai/Mistral-7B-Instruct-v0.3", token=HF_TOKEN)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 def get_choices(col):
     try: return sorted(encoders[col].classes_.tolist())
@@ -87,14 +85,25 @@ async def predict_csv(file: UploadFile = File(...)):
 
 @app.post("/chat")
 def chat(msg: ChatMessage):
+    if not GROQ_API_KEY:
+        return {"response": "Clé API Groq manquante. Configurez GROQ_API_KEY dans les secrets."}
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {"role": "system", "content": "Tu es un assistant intelligent de la DSI Orange Sonatel. Tu aides les agents a traiter les plaintes clients. Reponds toujours en francais de maniere concise et professionnelle."},
+            {"role": "user", "content": msg.message}
+        ],
+        "max_tokens": 300,
+        "temperature": 0.7
+    }
     try:
-        response = client.chat_completion(
-            messages=[
-                {"role": "system", "content": "Tu es un assistant DSI Orange Sonatel. Reponds en francais."},
-                {"role": "user", "content": msg.message}
-            ],
-            max_tokens=300
-        )
-        return {"response": response.choices[0].message.content.strip()}
+        r = requests.post(GROQ_URL, headers=headers, json=payload, timeout=30)
+        if r.status_code != 200:
+            return {"response": f"Erreur {r.status_code}: {r.text[:200]}"}
+        return {"response": r.json()["choices"][0]["message"]["content"].strip()}
     except Exception as e:
         return {"response": f"Erreur : {str(e)}"}
