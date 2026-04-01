@@ -182,6 +182,40 @@
 </head>
 <body>
 
+<!-- LOGIN PAGE -->
+<div id="login-page" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9998;
+  background:linear-gradient(135deg,#FF6600,#ff8c00 50%,#008080);
+  display:flex;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:24px;padding:40px;width:360px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.2);text-align:center;">
+    <img id="login-logo" src="" style="height:60px;margin-bottom:20px;" onerror="this.style.display='none'"/>
+    <h2 style="color:#FF6600;font-size:22px;font-weight:800;margin-bottom:4px;">DSI Orange Sonatel</h2>
+    <p style="color:#888;font-size:13px;margin-bottom:28px;">Système de Prédiction des Groupes</p>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <input id="login-user" type="text" placeholder="Nom d'utilisateur"
+        style="padding:12px 16px;border:1.5px solid #ffe0cc;border-radius:12px;font-size:14px;outline:none;
+               font-family:'Inter',sans-serif;transition:border 0.2s;"
+        onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#ffe0cc'"
+        onkeydown="if(event.key==='Enter')doLogin()"/>
+      <input id="login-pass" type="password" placeholder="Mot de passe"
+        style="padding:12px 16px;border:1.5px solid #ffe0cc;border-radius:12px;font-size:14px;outline:none;
+               font-family:'Inter',sans-serif;transition:border 0.2s;"
+        onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#ffe0cc'"
+        onkeydown="if(event.key==='Enter')doLogin()"/>
+      <div id="login-error" style="color:#e53935;font-size:13px;display:none;">Identifiants incorrects</div>
+      <button onclick="doLogin()" id="login-btn"
+        style="padding:14px;background:linear-gradient(135deg,#FF6600,#ff8c00);border:none;
+               border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;
+               box-shadow:0 6px 20px rgba(255,102,0,0.35);transition:all 0.2s;"
+        onmouseover="this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.transform='translateY(0)'">
+        Se connecter
+      </button>
+    </div>
+    <p style="color:#ccc;font-size:11px;margin-top:20px;">© 2025 Orange Sonatel — DSI</p>
+  </div>
+</div>
+
 <!-- NAV -->
 <nav>
   <div class="nav-logo">
@@ -194,6 +228,7 @@
     <button onclick="showTab('history',this)">📋 Historique</button>
     <button onclick="showTab('chat',this)">🤖 Assistant IA</button>
     <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙</button>
+    <button class="theme-btn" onclick="doLogout()" style="color:#FF6600;border-color:#FF6600;">🔒 Déconnexion</button>
   </div>
 </nav>
 
@@ -311,6 +346,62 @@ const API_PROD="https://cheikhanta-orange-sonatel-prediction.hf.space"
 let csvData = [];
 let history = JSON.parse(localStorage.getItem('pred_history') || '[]');
 let chart = null;
+let AUTH_TOKEN = localStorage.getItem('auth_token') || '';
+
+// Auth headers
+function authHeaders() {
+  return {'Content-Type':'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}`};
+}
+
+async function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const btn = document.getElementById('login-btn');
+  btn.textContent = 'Connexion...';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username: user, password: pass})
+    });
+    if (r.ok) {
+      const d = await r.json();
+      AUTH_TOKEN = d.token;
+      localStorage.setItem('auth_token', AUTH_TOKEN);
+      document.getElementById('login-page').style.display = 'none';
+      loadChoices();
+    } else {
+      document.getElementById('login-error').style.display = 'block';
+    }
+  } catch(e) {
+    document.getElementById('login-error').style.display = 'block';
+  }
+  btn.textContent = 'Se connecter';
+  btn.disabled = false;
+}
+
+async function doLogout() {
+  await fetch(`${API}/logout`, {method:'POST', headers: authHeaders()});
+  AUTH_TOKEN = '';
+  localStorage.removeItem('auth_token');
+  document.getElementById('login-page').style.display = 'flex';
+}
+
+// Vérifier si déjà connecté
+async function checkAuth() {
+  if (!AUTH_TOKEN) { document.getElementById('login-page').style.display = 'flex'; return; }
+  const r = await fetch(`${API}/choices`, {headers: authHeaders()});
+  if (r.status === 401) {
+    AUTH_TOKEN = '';
+    localStorage.removeItem('auth_token');
+    document.getElementById('login-page').style.display = 'flex';
+  } else {
+    document.getElementById('login-page').style.display = 'none';
+    const d = await r.json();
+    fillChoices(d);
+  }
+}
 
 function toggleTheme() {
   document.body.classList.toggle('dark');
@@ -372,9 +463,13 @@ function renderChart() {
 
 // Charger les choix au démarrage
 async function loadChoices() {
-  const r = await fetch(`${API_PROD}/choices`);
+  const r = await fetch(`${API_PROD}/choices`, {headers: authHeaders()});
+  if (r.status === 401) { doLogout(); return; }
   const d = await r.json();
+  fillChoices(d);
+}
 
+function fillChoices(d) {
   fill("sel-domaine", "list-domaine", d.domaines);
   fill("sel-sous-domaine", "list-sous-domaine", d.sous_domaines);
   fill("sel-type", "list-type", d.types);
@@ -433,7 +528,7 @@ async function predict() {
 
   const r = await fetch(`${API}/predict`, {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
+    headers: authHeaders(),
     body: JSON.stringify({domaine, sous_domaine, type_, typologie})
   });
   const d = await r.json();
@@ -480,7 +575,7 @@ async function uploadCSV(input) {
   if (!file) return;
   const form = new FormData();
   form.append("file", file);
-  const r = await fetch(`${API}/predict-csv`, {method:"POST", body:form});
+  const r = await fetch(`${API}/predict-csv`, {method:"POST", headers:{'Authorization':`Bearer ${AUTH_TOKEN}`}, body:form});
   csvData = await r.json();
 
   if (!csvData.length) return;
@@ -525,7 +620,7 @@ async function sendChat() {
 
   const r = await fetch(`${API}/chat`, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: authHeaders(),
     body: JSON.stringify({message: text})
   });
   const d = await r.json();
@@ -534,7 +629,7 @@ async function sendChat() {
   messages.scrollTop = messages.scrollHeight;
 }
 
-loadChoices();
+checkAuth();
 renderHistory();
 renderChart();
 </script>
