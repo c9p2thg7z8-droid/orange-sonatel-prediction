@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Orange Sonatel — Prédiction des Groupes</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Inter',sans-serif;background:#f4f4f4;color:#222;}
@@ -19,6 +20,9 @@
   .nav-links button:hover{background:#fff0e6;color:#FF6600;}
   .nav-links button.active{background:linear-gradient(135deg,#FF6600,#ff8c00);color:white;
       box-shadow:0 4px 12px rgba(255,102,0,0.3);}
+  .theme-btn{background:none;border:1.5px solid #ddd;border-radius:10px;padding:6px 14px;
+      cursor:pointer;font-size:16px;transition:all 0.2s;}
+  .theme-btn:hover{border-color:#FF6600;}
 
   /* HERO */
   .hero{background:linear-gradient(135deg,#FF6600 0%,#ff8c00 50%,#008080 100%);
@@ -135,6 +139,36 @@
   .btn-send{padding:12px 20px;background:linear-gradient(135deg,#FF6600,#ff8c00);border:none;border-radius:12px;color:white;font-weight:700;cursor:pointer;transition:all 0.2s;}
   .btn-send:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(255,102,0,0.4);}
 
+  /* DARK MODE */
+  body.dark{background:#1a1a1a;color:#eee;}
+  body.dark nav{background:#2a2a2a;box-shadow:0 2px 12px rgba(0,0,0,0.4);}
+  body.dark .nav-links button{color:#aaa;}
+  body.dark .nav-links button:hover{background:#3a3a3a;color:#FF6600;}
+  body.dark .card{background:#2a2a2a;border-color:rgba(255,102,0,0.2);}
+  body.dark .card-title{border-bottom-color:#3a3a3a;}
+  body.dark .form-group label{color:#aaa;}
+  body.dark .form-group input{background:#333;border-color:#444;color:#eee;}
+  body.dark .info-item{background:linear-gradient(135deg,#2a2a2a,#333);border-color:#444;}
+  body.dark .chat-wrap{background:#2a2a2a;}
+  body.dark .msg.bot{background:#333;color:#eee;border-color:#444;}
+  body.dark footer{border-top-color:#333;}
+  body.dark .upload-area{background:#2a2a2a;border-color:#444;}
+  body.dark td{color:#ccc;border-bottom-color:#333;}
+  body.dark tr:hover td{background:#333;}
+
+  /* HISTORIQUE */
+  .history-item{display:flex;align-items:center;justify-content:space-between;
+      padding:12px 16px;border-radius:12px;background:#f9f9f9;border:1px solid #f0f0f0;
+      margin-bottom:8px;animation:fadeUp 0.3s ease;}
+  body.dark .history-item{background:#333;border-color:#444;}
+  .history-groupe{font-weight:700;color:#FF6600;font-size:14px;}
+  .history-conf{font-size:12px;color:#888;}
+  .history-params{font-size:11px;color:#aaa;margin-top:2px;}
+  .history-empty{text-align:center;color:#aaa;padding:20px;font-size:13px;}
+
+  /* CHART */
+  .chart-wrap{margin-top:20px;}
+
   /* LOADER */
   .loader{display:inline-block;width:20px;height:20px;border:3px solid rgba(255,255,255,0.4);
       border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;}
@@ -157,7 +191,9 @@
     <button class="active" onclick="showTab('predict',this)">🎯 Prédiction</button>
     <button onclick="showTab('csv',this)">📂 CSV en masse</button>
     <button onclick="showTab('info',this)">ℹ️ Modèle</button>
+    <button onclick="showTab('history',this)">📋 Historique</button>
     <button onclick="showTab('chat',this)">🤖 Assistant IA</button>
+    <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙</button>
   </div>
 </nav>
 
@@ -236,6 +272,21 @@
     </div>
   </div>
 
+  <!-- TAB HISTORIQUE -->
+  <div class="tab-content" id="tab-history">
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>📋 Historique des prédictions</span>
+        <button onclick="clearHistory()" style="background:#fee;border:1px solid #fcc;border-radius:8px;padding:4px 12px;font-size:12px;color:#c00;cursor:pointer;">Effacer</button>
+      </div>
+      <div id="history-list"><div class="history-empty">💭 Aucune prédiction pour l'instant</div></div>
+    </div>
+    <div class="card chart-wrap">
+      <div class="card-title">📊 Répartition des groupes prédits</div>
+      <canvas id="chart-groupes" height="120"></canvas>
+    </div>
+  </div>
+
   <!-- TAB CHAT -->
   <div class="tab-content" id="tab-chat">
     <div class="chat-wrap">
@@ -258,6 +309,66 @@
 const API = "https://cheikhanta-orange-sonatel-prediction.hf.space";
 const API_PROD="https://cheikhanta-orange-sonatel-prediction.hf.space"
 let csvData = [];
+let history = JSON.parse(localStorage.getItem('pred_history') || '[]');
+let chart = null;
+
+function toggleTheme() {
+  document.body.classList.toggle('dark');
+  document.getElementById('theme-btn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+}
+
+if (localStorage.getItem('theme') === 'dark') {
+  document.body.classList.add('dark');
+  document.getElementById('theme-btn').textContent = '☀️';
+}
+
+function addToHistory(domaine, type_, groupe, confiance) {
+  history.unshift({domaine, type_, groupe, confiance, date: new Date().toLocaleTimeString()});
+  if (history.length > 20) history.pop();
+  localStorage.setItem('pred_history', JSON.stringify(history));
+  renderHistory();
+  renderChart();
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!history.length) { el.innerHTML = '<div class="history-empty">💭 Aucune prédiction pour l\'instant</div>'; return; }
+  el.innerHTML = history.map(h => `
+    <div class="history-item">
+      <div>
+        <div class="history-groupe">${h.groupe}</div>
+        <div class="history-params">${h.domaine} — ${h.type_}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="history-conf">${h.confiance}%</div>
+        <div class="history-params">${h.date}</div>
+      </div>
+    </div>`).join('');
+}
+
+function clearHistory() {
+  history = [];
+  localStorage.removeItem('pred_history');
+  renderHistory();
+  renderChart();
+}
+
+function renderChart() {
+  const counts = {};
+  history.forEach(h => { counts[h.groupe] = (counts[h.groupe] || 0) + 1; });
+  const labels = Object.keys(counts);
+  const data = Object.values(counts);
+  const colors = labels.map((_, i) => `hsl(${(i * 47 + 20) % 360},70%,55%)`);
+
+  if (chart) chart.destroy();
+  if (!labels.length) return;
+  chart = new Chart(document.getElementById('chart-groupes'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2 }] },
+    options: { plugins: { legend: { position: 'right' } }, animation: { animateRotate: true } }
+  });
+}
 
 // Charger les choix au démarrage
 async function loadChoices() {
@@ -345,6 +456,8 @@ async function predict() {
   else if (pct >= 50) { bg="linear-gradient(135deg,#fff3e0,#ffe0b2)"; color="#cc4400"; icon="🟡"; barColor="#FF6600"; }
   else { bg="linear-gradient(135deg,#fdecea,#ffcdd2)"; color="#7f0000"; icon="⚠️"; barColor="#e53935"; }
 
+  addToHistory(domaine, type_, d.groupe, pct);
+
   document.getElementById("result-box").innerHTML = `
     <div class="result-card" style="background:${bg};">
       <div class="result-icon">${icon}</div>
@@ -422,6 +535,8 @@ async function sendChat() {
 }
 
 loadChoices();
+renderHistory();
+renderChart();
 </script>
 </body>
 </html>
