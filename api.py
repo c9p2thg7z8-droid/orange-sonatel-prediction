@@ -19,8 +19,18 @@ OLLAMA_URL = "http://localhost:11434/api/chat"
 
 # Utilisateurs (mot de passe hashé SHA256)
 USERS = {
-    "admin": hashlib.sha256("orange2025".encode()).hexdigest(),
-    "agent": hashlib.sha256("sonatel2025".encode()).hexdigest(),
+    "admin": {
+        "password": hashlib.sha256("orange2025".encode()).hexdigest(),
+        "nom": "Administrateur",
+        "role": "Admin DSI",
+        "avatar": "👨‍💻"
+    },
+    "agent": {
+        "password": hashlib.sha256("sonatel2025".encode()).hexdigest(),
+        "nom": "Agent Sonatel",
+        "role": "Agent DSI",
+        "avatar": "👩‍💼"
+    },
 }
 
 # Tokens actifs en mémoire
@@ -32,6 +42,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials or credentials.credentials not in active_tokens.values():
         raise HTTPException(status_code=401, detail="Non autorisé")
     return credentials.credentials
+
+def get_user_from_token(token: str):
+    for username, tok in active_tokens.items():
+        if tok == token:
+            return username
+    return None
 
 def get_choices(col):
     try: return sorted(encoders[col].classes_.tolist())
@@ -57,10 +73,11 @@ def index():
 @app.post("/login")
 def login(data: LoginData):
     hashed = hashlib.sha256(data.password.encode()).hexdigest()
-    if data.username in USERS and USERS[data.username] == hashed:
+    if data.username in USERS and USERS[data.username]["password"] == hashed:
         token = secrets.token_hex(32)
         active_tokens[data.username] = token
-        return {"token": token, "username": data.username}
+        u = USERS[data.username]
+        return {"token": token, "username": data.username, "nom": u["nom"], "role": u["role"], "avatar": u["avatar"]}
     raise HTTPException(status_code=401, detail="Identifiants incorrects")
 
 @app.post("/logout")
